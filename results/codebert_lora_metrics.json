@@ -1,0 +1,54 @@
+{
+  "accuracy": 0.9899799599198397,
+  "macro_f1": 0.9932235492187089,
+  "per_class": {
+    "Perfect": {
+      "precision": 0.9855769230769231,
+      "recall": 0.9903381642512077,
+      "f1-score": 0.9879518072289156,
+      "support": 207.0
+    },
+    "SecurityError": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 78.0
+    },
+    "SemanticError": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 60.0
+    },
+    "StyleError": {
+      "precision": 0.9824561403508771,
+      "recall": 0.9739130434782609,
+      "f1-score": 0.9781659388646288,
+      "support": 115.0
+    },
+    "SyntaxError": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 39.0
+    },
+    "accuracy": 0.9899799599198397,
+    "macro avg": {
+      "precision": 0.99360661268556,
+      "recall": 0.9928502415458936,
+      "f1-score": 0.9932235492187089,
+      "support": 499.0
+    },
+    "weighted avg": {
+      "precision": 0.9899737058462404,
+      "recall": 0.9899799599198397,
+      "f1-score": 0.9899701544405167,
+      "support": 499.0
+    }
+  },
+  "model": "microsoft/codebert-base",
+  "mode": "lora",
+  "epochs": 6,
+  "batch_size": 16,
+  "lr": 0.0005
+}

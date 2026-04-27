@@ -1,0 +1,54 @@
+{
+  "accuracy": 0.9879759519038076,
+  "macro_f1": 0.9918522267206479,
+  "per_class": {
+    "Perfect": {
+      "precision": 0.9808612440191388,
+      "recall": 0.9903381642512077,
+      "f1-score": 0.9855769230769231,
+      "support": 207.0
+    },
+    "SecurityError": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 78.0
+    },
+    "SemanticError": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 60.0
+    },
+    "StyleError": {
+      "precision": 0.9823008849557522,
+      "recall": 0.9652173913043478,
+      "f1-score": 0.9736842105263158,
+      "support": 115.0
+    },
+    "SyntaxError": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 39.0
+    },
+    "accuracy": 0.9879759519038076,
+    "macro avg": {
+      "precision": 0.9926324257949781,
+      "recall": 0.9911111111111112,
+      "f1-score": 0.9918522267206479,
+      "support": 499.0
+    },
+    "weighted avg": {
+      "precision": 0.9879817220077619,
+      "recall": 0.9879759519038076,
+      "f1-score": 0.9879521188125239,
+      "support": 499.0
+    }
+  },
+  "model": "microsoft/codebert-base",
+  "mode": "full",
+  "epochs": 4,
+  "batch_size": 16,
+  "lr": 2e-05
+}

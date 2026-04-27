@@ -1,0 +1,52 @@
+# Project configuration
+project:
+  name: move-issue-classifier
+  seed: 42
+
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  test_size: 0.15
+  val_size: 0.15
+
+simple_baseline:
+  max_features: 10000
+  ngram_range: [1, 2]
+  classifiers:
+    - logreg
+    - svm
+    - rf
+
+prompting:
+  models:
+    - codellama/CodeLlama-7b-Instruct-hf
+    # - bigcode/starcoder2-3b
+  shots: [0, 1, 3]
+  max_new_tokens: 20
+
+peft:
+  models:
+    - name: bigcode/starcoder2-3b
+      batch_size: 8
+    - name: codellama/CodeLlama-7b-hf
+      batch_size: 4
+  use_qlora: true
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  epochs: 5
+  lr: 2.0e-4
+  max_length: 512
+  target_modules:
+    - q_proj
+    - v_proj
+
+results_dir: results
+output_dir: checkpoints
+
+codebert:
+  model: microsoft/codebert-base
+  epochs: 5
+  batch_size: 16
+  lr: 2.0e-5
+  max_length: 512
