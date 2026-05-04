@@ -1,0 +1,17 @@
+.vscode/**
+.vscode-test/**
+**/.DS_Store
+**/*.vsix
+**/tsconfig.json
+**/.eslintrc*
+src/**
+**/*.ts
+**/*.map
+node_modules/**
+esbuild.js
+package-lock.json
+!out/extension.js
+!LICENSE
+!CHANGELOG.md
+!README.md
+!icon.png

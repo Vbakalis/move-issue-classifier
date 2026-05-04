@@ -1,0 +1,143 @@
+{
+  "name": "move-issue-classifier",
+  "displayName": "Move Issue Classifier",
+  "description": "Classify Move smart-contract issues with a local CodeBERT+LoRA model and request fixes from Claude.",
+  "version": "0.2.0",
+  "publisher": "vbakalis",
+  "license": "MIT",
+  "icon": "icon.png",
+  "keywords": [
+    "move",
+    "sui",
+    "smart contract",
+    "linter",
+    "claude",
+    "anthropic",
+    "codebert",
+    "lora"
+  ],
+  "galleryBanner": {
+    "color": "#182438",
+    "theme": "dark"
+  },
+  "homepage": "https://github.com/Vbakalis/move-issue-classifier#readme",
+  "bugs": {
+    "url": "https://github.com/Vbakalis/move-issue-classifier/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Vbakalis/move-issue-classifier.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Machine Learning"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:move",
+    "onCommand:move-classifier.diagnose"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "move-classifier.diagnose",
+        "title": "Move: Diagnose Selection",
+        "category": "Move Classifier"
+      },
+      {
+        "command": "move-classifier.fixDiagnostic",
+        "title": "Move: Fix Diagnostic with Claude",
+        "category": "Move Classifier"
+      },
+      {
+        "command": "move-classifier.restartServer",
+        "title": "Move: Restart Local Classifier Server",
+        "category": "Move Classifier"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "move-classifier.diagnose",
+        "key": "ctrl+alt+m",
+        "mac": "cmd+alt+m",
+        "when": "editorTextFocus"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "move-classifier.fixDiagnostic",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Move Issue Classifier",
+      "properties": {
+        "moveClassifier.anthropicApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your Anthropic API key. Used only to request fix suggestions from Claude. Stored in VS Code settings; never sent anywhere except api.anthropic.com.",
+          "scope": "application"
+        },
+        "moveClassifier.claudeModel": {
+          "type": "string",
+          "default": "claude-sonnet-4-5",
+          "enum": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "description": "Claude model used for fix suggestions."
+        },
+        "moveClassifier.serverUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8765",
+          "description": "Local classifier server URL. Leave default unless you run the server yourself."
+        },
+        "moveClassifier.confidenceThreshold": {
+          "type": "number",
+          "default": 0.6,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum classifier confidence below which the prediction is treated as 'uncertain' and Claude is asked to diagnose from scratch."
+        },
+        "moveClassifier.autoSpawnServer": {
+          "type": "boolean",
+          "default": true,
+          "description": "If true, the extension launches the local FastAPI server on activation. Disable if you run the server yourself."
+        },
+        "moveClassifier.classifyOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, classify Move files automatically on save and publish diagnostics. Off by default; enable once the local server is reliably reachable."
+        },
+        "moveClassifier.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Python interpreter used to spawn the server. Leave empty to auto-detect (python3 / python on PATH)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "tsc -p ./",
+    "watch": "node esbuild.js --watch",
+    "bundle": "node esbuild.js",
+    "package": "tsc --noEmit -p ./ && node esbuild.js --production"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.4.0"
+  }
+}
