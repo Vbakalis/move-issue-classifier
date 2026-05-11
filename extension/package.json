@@ -1,9 +1,9 @@
 {
-  "name": "move-issue-classifier",
-  "displayName": "Move Issue Classifier",
+  "name": "smooth-move",
+  "displayName": "SmoothMove",
   "description": "Classify Move smart-contract issues with a local CodeBERT+LoRA model and request fixes from Claude.",
   "version": "0.2.0",
-  "publisher": "vbakalis",
+  "publisher": "BakalisVasilis",
   "license": "MIT",
   "icon": "icon.png",
   "keywords": [

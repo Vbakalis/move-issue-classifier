@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Move Issue Classifier extension are documented here.
+All notable changes to the SmoothMove extension are documented here.
 
 ## [0.2.0] - 2026-05-04
 
