@@ -2,6 +2,16 @@
 
 All notable changes to the NiceMove extension are documented here.
 
+## [0.3.0] - 2026-05-11
+
+### Added
+- **Status bar indicator**: shows `✓ NiceMove` when idle, a spinner while classifying, and `⚠ NiceMove` when issues are detected. Click to trigger diagnosis.
+- **Classification cache**: unchanged code is not re-classified, making repeated diagnoses instant.
+- **Workspace-wide scan**: new command "Move: Scan All Move Files" classifies every `.move` file in the workspace with a progress bar.
+- **Apply Fix inline**: after Claude suggests a fix, an "Apply Fix" button in the panel patches the code directly in the editor.
+- **Multi-label diagnostics**: when the classifier's second prediction exceeds 15% confidence and is non-Perfect, it appears as a Hint-level diagnostic alongside the primary.
+- **Marketplace badges**: version and install count badges in the listing.
+
 ## [0.2.0] - 2026-05-04
 
 ### Added

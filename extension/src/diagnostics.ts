@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { ClassifyResponse } from "./client";
 
 /**
  * Owns a DiagnosticCollection for the Move Classifier and tracks
@@ -24,6 +25,44 @@ export class MoveDiagnostics implements vscode.Disposable {
         d.code = label;
         this.col.set(uri, [d]);
         this.confidences.set(this.key(uri, range), confidence);
+    }
+
+    /** Multi-label: show primary + second prediction if confidence is meaningful */
+    setMulti(uri: vscode.Uri, range: vscode.Range, result: ClassifyResponse): void {
+        if (result.label === "Perfect") {
+            this.clear(uri);
+            return;
+        }
+
+        const diags: vscode.Diagnostic[] = [];
+        const conf = (result.confidence * 100).toFixed(1);
+        const primary = new vscode.Diagnostic(
+            range,
+            `${result.label} (${conf}% confidence). Use the Quick Fix lightbulb to ask Claude.`,
+            severityFor(result.label)
+        );
+        primary.source = this.source;
+        primary.code = result.label;
+        diags.push(primary);
+        this.confidences.set(this.key(uri, range), result.confidence);
+
+        // Show second prediction as a hint if it's non-Perfect and confidence > 15%
+        if (result.top_2 && result.top_2.length > 1) {
+            const second = result.top_2[1];
+            if (second.label !== "Perfect" && second.confidence > 0.15) {
+                const conf2 = (second.confidence * 100).toFixed(1);
+                const hint = new vscode.Diagnostic(
+                    range,
+                    `Also possible: ${second.label} (${conf2}% confidence)`,
+                    vscode.DiagnosticSeverity.Hint
+                );
+                hint.source = this.source;
+                hint.code = second.label;
+                diags.push(hint);
+            }
+        }
+
+        this.col.set(uri, diags);
     }
 
     getConfidence(uri: vscode.Uri, range: vscode.Range): number {

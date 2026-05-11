@@ -2,7 +2,7 @@
   "name": "nicemove",
   "displayName": "NiceMove",
   "description": "Classify Move smart-contract issues with a local CodeBERT+LoRA model and request fixes from Claude.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "BakalisVasilis",
   "license": "MIT",
   "icon": "icon.png",
@@ -20,6 +20,18 @@
     "color": "#182438",
     "theme": "dark"
   },
+  "badges": [
+    {
+      "url": "https://img.shields.io/visual-studio-marketplace/v/BakalisVasilis.nicemove",
+      "href": "https://marketplace.visualstudio.com/items?itemName=BakalisVasilis.nicemove",
+      "description": "VS Marketplace Version"
+    },
+    {
+      "url": "https://img.shields.io/visual-studio-marketplace/i/BakalisVasilis.nicemove",
+      "href": "https://marketplace.visualstudio.com/items?itemName=BakalisVasilis.nicemove",
+      "description": "Installs"
+    }
+  ],
   "homepage": "https://github.com/Vbakalis/move-issue-classifier#readme",
   "bugs": {
     "url": "https://github.com/Vbakalis/move-issue-classifier/issues"
@@ -56,6 +68,11 @@
       {
         "command": "move-classifier.restartServer",
         "title": "Move: Restart Local Classifier Server",
+        "category": "Move Classifier"
+      },
+      {
+        "command": "move-classifier.scanWorkspace",
+        "title": "Move: Scan All Move Files",
         "category": "Move Classifier"
       }
     ],

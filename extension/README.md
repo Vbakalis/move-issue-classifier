@@ -1,8 +1,10 @@
 # NiceMove — VS Code Extension
 
-A VS Code extension that classifies Move smart-contract code on Sui using a
-local CodeBERT + LoRA model (trained as part of the MSc thesis), and then
+A VS Code extension that classifies Move smart-contract code using a
+local CodeBERT + LoRA model (trained as part of an MSc thesis), and then
 asks Claude for a concrete fix when the classifier flags a real issue.
+
+![NiceMove Demo](demo.gif)
 
 ## Architecture
 
@@ -18,7 +20,7 @@ Local FastAPI server (Python)  ← auto-spawned on activation
         ▼
 Anthropic API  (your key, your billing)
         ▼
-Fix suggestion shown in a side panel
+Fix suggestion shown in a side panel (with Apply Fix button)
 ```
 
 ## Setup
@@ -39,10 +41,20 @@ Fix suggestion shown in a side panel
 
 - **Inline diagnostics** — predictions appear as squiggles in the editor and
   entries in the Problems tab.
+- **Multi-label diagnostics** — when the classifier is uncertain, the second-most
+  likely prediction is shown as a hint alongside the primary diagnosis.
 - **Quick Fix lightbulb** — every diagnostic carries a `Fix … with Claude`
   code action; trigger it with `Cmd+.`.
 - **Streaming Claude output** — the side panel streams tokens as Claude
   generates them.
+- **Apply Fix inline** — after Claude suggests a fix, click "Apply Fix" in the
+  panel to patch the code directly in the editor.
+- **Status bar indicator** — shows `✓ NiceMove` when idle, a spinner while
+  classifying, and `⚠ NiceMove` when issues are detected.
+- **Workspace scan** — run **Move: Scan All Move Files** from the command palette
+  to classify every `.move` file in the workspace at once.
+- **Classification cache** — unchanged code is not re-classified, making
+  repeated diagnoses instant.
 - **OOD guard** — a Move-likeness heuristic suppresses predictions on
   non-Move snippets so the model's over-confidence on out-of-distribution
   input does not surface as false diagnostics.

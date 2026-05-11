@@ -10,6 +10,28 @@ import { isLikelyMove, moveLikenessScore } from "./heuristic";
 let serverManager: ServerManager | undefined;
 let output: vscode.OutputChannel;
 let diagnostics: MoveDiagnostics;
+let statusBar: vscode.StatusBarItem;
+
+// Classification cache: key = uri+content hash, value = result
+const classifyCache = new Map<string, ClassifyResponse>();
+
+function contentHash(text: string): string {
+    let h = 0;
+    for (let i = 0; i < text.length; i++) {
+        h = ((h << 5) - h + text.charCodeAt(i)) | 0;
+    }
+    return h.toString(36);
+}
+
+function cacheKey(uri: vscode.Uri, code: string): string {
+    return `${uri.toString()}::${contentHash(code)}`;
+}
+
+function setStatusBar(text: string, tooltip?: string) {
+    statusBar.text = text;
+    if (tooltip) statusBar.tooltip = tooltip;
+    statusBar.show();
+}
 
 const MOVE_SELECTOR: vscode.DocumentSelector = [
     { language: "move" },
@@ -19,6 +41,12 @@ const MOVE_SELECTOR: vscode.DocumentSelector = [
 export async function activate(ctx: vscode.ExtensionContext) {
     output = vscode.window.createOutputChannel("Move Issue Classifier");
     ctx.subscriptions.push(output);
+
+    // Status bar item
+    statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
+    statusBar.command = "move-classifier.diagnose";
+    setStatusBar("$(check) NiceMove", "NiceMove — click to diagnose");
+    ctx.subscriptions.push(statusBar);
 
     diagnostics = new MoveDiagnostics();
     ctx.subscriptions.push(diagnostics);
@@ -31,9 +59,15 @@ export async function activate(ctx: vscode.ExtensionContext) {
         )
     );
 
-    // Clear diagnostics when the file changes underneath them.
+    // Clear diagnostics and cache when the file changes underneath them.
     ctx.subscriptions.push(
-        vscode.workspace.onDidChangeTextDocument((e) => diagnostics.clear(e.document.uri)),
+        vscode.workspace.onDidChangeTextDocument((e) => {
+            diagnostics.clear(e.document.uri);
+            // Invalidate cache for changed file
+            for (const k of classifyCache.keys()) {
+                if (k.startsWith(e.document.uri.toString())) classifyCache.delete(k);
+            }
+        }),
         vscode.workspace.onDidCloseTextDocument((doc) => diagnostics.clear(doc.uri))
     );
 
@@ -67,7 +101,9 @@ export async function activate(ctx: vscode.ExtensionContext) {
             await serverManager?.stop();
             await serverManager?.start();
             vscode.window.showInformationMessage("Move Classifier: server restarted.");
-        })
+        }),
+        vscode.commands.registerCommand("move-classifier.scanWorkspace", () => runWorkspaceScan()),
+        vscode.commands.registerCommand("move-classifier.applyFix", (args: ApplyFixArgs) => applyFixInline(args))
     );
 }
 
@@ -106,16 +142,28 @@ async function runDiagnose(ctx: vscode.ExtensionContext) {
     const apiKey = cfg.get<string>("anthropicApiKey") ?? "";
     const model = cfg.get<string>("claudeModel") ?? "claude-sonnet-4-5";
 
+    // Check cache first
+    const key = cacheKey(editor.document.uri, code);
     let result: ClassifyResponse;
-    try {
-        result = await vscode.window.withProgress(
-            { location: vscode.ProgressLocation.Notification, title: "Classifying Move snippet..." },
-            () => classify(serverUrl, code)
-        );
-    } catch (err: any) {
-        output.appendLine(`Classify failed: ${err}`);
-        vscode.window.showErrorMessage(`Move Classifier: classify failed (${err.message ?? err}).`);
-        return;
+    const cached = classifyCache.get(key);
+
+    if (cached) {
+        result = cached;
+        output.appendLine(`[diagnose] cache hit`);
+    } else {
+        setStatusBar("$(loading~spin) NiceMove", "Classifying...");
+        try {
+            result = await vscode.window.withProgress(
+                { location: vscode.ProgressLocation.Notification, title: "Classifying Move snippet..." },
+                () => classify(serverUrl, code)
+            );
+        } catch (err: any) {
+            setStatusBar("$(error) NiceMove", "Classification failed");
+            output.appendLine(`Classify failed: ${err}`);
+            vscode.window.showErrorMessage(`Move Classifier: classify failed (${err.message ?? err}).`);
+            return;
+        }
+        classifyCache.set(key, result);
     }
 
     const conf = (result.confidence * 100).toFixed(1);
@@ -127,19 +175,23 @@ async function runDiagnose(ctx: vscode.ExtensionContext) {
     if (!isLikelyMove(code)) {
         output.appendLine(`[diagnose] OOD guard: likeness=${likeness.toFixed(2)} — suppressing prediction.`);
         diagnostics.clear(editor.document.uri);
+        setStatusBar("$(check) NiceMove", "OOD — not Move code");
         vscode.window.showInformationMessage(
             `Move Classifier: snippet does not look like Sui Move (likeness ${(likeness * 100).toFixed(0)}%) — skipping.`
         );
         return;
     }
 
-    // Publish a diagnostic so the user sees the squiggle + can re-trigger via lightbulb.
-    diagnostics.set(editor.document.uri, range, result.label, result.confidence);
+    // Multi-label support: show top-2 predictions as separate diagnostics
+    diagnostics.setMulti(editor.document.uri, range, result);
 
     if (result.label === "Perfect" && result.confidence >= threshold) {
+        setStatusBar("$(check) NiceMove", `${headline} — no issues`);
         vscode.window.showInformationMessage(`Move Classifier: ${headline} — no issues detected.`);
         return;
     }
+
+    setStatusBar("$(warning) NiceMove", headline);
 
     if (!apiKey) {
         const choice = await vscode.window.showWarningMessage(
@@ -160,6 +212,8 @@ async function runDiagnose(ctx: vscode.ExtensionContext) {
         label: result.label,
         labelForPrompt,
         confidence: result.confidence,
+        uri: editor.document.uri.toString(),
+        range: { start: { line: range.start.line, character: range.start.character }, end: { line: range.end.line, character: range.end.character } },
     });
 }
 
@@ -188,6 +242,8 @@ async function runFixFromAction(ctx: vscode.ExtensionContext, payload: FixPayloa
         label: payload.label,
         labelForPrompt,
         confidence: payload.confidence,
+        uri: payload.uri,
+        range: { start: { line: payload.range.start.line, character: payload.range.start.character }, end: { line: payload.range.end.line, character: payload.range.end.character } },
     });
 }
 
@@ -218,16 +274,24 @@ async function autoClassify(doc: vscode.TextDocument) {
     const cfg = vscode.workspace.getConfiguration("moveClassifier");
     const serverUrl = cfg.get<string>("serverUrl") ?? "http://127.0.0.1:8765";
 
+    // Check cache first
+    const key = cacheKey(doc.uri, code);
     let result: ClassifyResponse;
-    try {
-        result = await classify(serverUrl, code);
-    } catch (err: any) {
-        output.appendLine(`[auto-classify] failed for ${doc.uri.fsPath}: ${err.message ?? err}`);
-        return;
+    const cached = classifyCache.get(key);
+    if (cached) {
+        result = cached;
+    } else {
+        try {
+            result = await classify(serverUrl, code);
+            classifyCache.set(key, result);
+        } catch (err: any) {
+            output.appendLine(`[auto-classify] failed for ${doc.uri.fsPath}: ${err.message ?? err}`);
+            return;
+        }
     }
 
     const range = new vscode.Range(0, 0, Math.max(0, doc.lineCount - 1), 0);
-    diagnostics.set(doc.uri, range, result.label, result.confidence);
+    diagnostics.setMulti(doc.uri, range, result);
     output.appendLine(
         `[auto-classify] ${doc.uri.fsPath} → ${result.label} (${(result.confidence * 100).toFixed(1)}%)`
     );
@@ -242,12 +306,16 @@ async function streamFix(
         label: string;
         labelForPrompt: string;
         confidence: number;
+        uri?: string;
+        range?: { start: { line: number; character: number }; end: { line: number; character: number } };
     }
 ) {
     const panel = FixPanel.open(ctx, {
         code: args.code,
         label: args.label,
         confidence: args.confidence,
+        uri: args.uri,
+        range: args.range,
     });
 
     try {
@@ -267,4 +335,87 @@ async function streamFix(
         output.appendLine(`Claude stream failed: ${msg}`);
         panel.fail(msg);
     }
+}
+
+// --- Workspace-wide scan ---
+
+async function runWorkspaceScan() {
+    const files = await vscode.workspace.findFiles("**/*.move", "**/build/**");
+    if (files.length === 0) {
+        vscode.window.showInformationMessage("NiceMove: no .move files found in workspace.");
+        return;
+    }
+
+    const cfg = vscode.workspace.getConfiguration("moveClassifier");
+    const serverUrl = cfg.get<string>("serverUrl") ?? "http://127.0.0.1:8765";
+
+    setStatusBar("$(loading~spin) NiceMove", `Scanning ${files.length} files...`);
+
+    let issues = 0;
+    await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: "NiceMove: scanning workspace...", cancellable: true },
+        async (progress, token) => {
+            for (let i = 0; i < files.length; i++) {
+                if (token.isCancellationRequested) break;
+                const uri = files[i];
+                progress.report({ message: `${i + 1}/${files.length}`, increment: 100 / files.length });
+
+                const doc = await vscode.workspace.openTextDocument(uri);
+                const code = doc.getText();
+                if (!code.trim() || !isLikelyMove(code)) {
+                    diagnostics.clear(uri);
+                    continue;
+                }
+
+                const key = cacheKey(uri, code);
+                let result: ClassifyResponse;
+                const cached = classifyCache.get(key);
+                if (cached) {
+                    result = cached;
+                } else {
+                    try {
+                        result = await classify(serverUrl, code);
+                        classifyCache.set(key, result);
+                    } catch (err: any) {
+                        output.appendLine(`[scan] failed for ${uri.fsPath}: ${err.message ?? err}`);
+                        continue;
+                    }
+                }
+
+                const range = new vscode.Range(0, 0, Math.max(0, doc.lineCount - 1), 0);
+                diagnostics.setMulti(uri, range, result);
+                if (result.label !== "Perfect") issues++;
+            }
+        }
+    );
+
+    setStatusBar("$(check) NiceMove", `Scan complete: ${issues} issue(s) in ${files.length} files`);
+    vscode.window.showInformationMessage(`NiceMove: scanned ${files.length} files, found ${issues} issue(s).`);
+}
+
+// --- Apply fix inline ---
+
+interface ApplyFixArgs {
+    uri: string;
+    range: { start: { line: number; character: number }; end: { line: number; character: number } };
+    newText: string;
+}
+
+async function applyFixInline(args: ApplyFixArgs) {
+    const uri = vscode.Uri.parse(args.uri);
+    const doc = await vscode.workspace.openTextDocument(uri);
+    const editor = await vscode.window.showTextDocument(doc);
+    const range = new vscode.Range(
+        args.range.start.line, args.range.start.character,
+        args.range.end.line, args.range.end.character
+    );
+    await editor.edit((editBuilder) => {
+        editBuilder.replace(range, args.newText);
+    });
+    // Clear cache for this file since content changed
+    for (const k of classifyCache.keys()) {
+        if (k.startsWith(uri.toString())) classifyCache.delete(k);
+    }
+    diagnostics.clear(uri);
+    vscode.window.showInformationMessage("NiceMove: fix applied.");
 }
