@@ -1,4 +1,4 @@
-# SmoothMove — VS Code Extension
+# NiceMove — VS Code Extension
 
 A VS Code extension that classifies Move smart-contract code on Sui using a
 local CodeBERT + LoRA model (trained as part of the MSc thesis), and then
