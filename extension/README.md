@@ -31,7 +31,7 @@ Fix suggestion shown in a side panel
 2. Open the `extension/` folder in VS Code and press **F5** to launch an
    Extension Development Host.
 3. In the host window, set your Anthropic API key in
-   *Settings → Extensions → Move Issue Classifier → Anthropic API Key*.
+   *Settings → Extensions → NiceMove → Anthropic API Key*.
 4. Open a `.move` file, select code (or none for the whole file), and run
    **Move: Diagnose Selection** (`Cmd+Alt+M` / `Ctrl+Alt+M`).
 
