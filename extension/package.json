@@ -2,7 +2,7 @@
   "name": "nicemove",
   "displayName": "NiceMove",
   "description": "Classify Move smart-contract issues with a local CodeBERT+LoRA model and request fixes from Claude.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "BakalisVasilis",
   "license": "MIT",
   "icon": "icon.png",
