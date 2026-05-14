@@ -16,6 +16,7 @@ results/*.log
 Sui_Dataset*.ipynb
 models/**/*.safetensors
 models/**/*.bin
+!models/codebert_lora/adapter_model.safetensors
 notebooks/03_prompting_baseline.ipynb
 notebooks/04_peft_finetuning.ipynb
 src/codebert_finetune.py
