@@ -2,10 +2,12 @@
 
 ## Overview
 
-This extension classifies Move (Sui) smart-contract code using a locally-running
-CodeBERT + LoRA model and displays diagnostics inside VS Code. When an issue is
-detected, the extension underlines the code and shows the error category
-(SecurityError, SemanticError, StyleError, SyntaxError) with a confidence score.
+This extension classifies Move (Sui) smart-contract code using a local
+CodeBERT + LoRA model (bundled as a quantized ONNX export) and displays
+diagnostics inside VS Code. When an issue is detected, the extension
+underlines the code and shows the error category (SecurityError,
+SemanticError, StyleError, SyntaxError) with a confidence score. Classification
+runs entirely in-process — no server, no Python environment to set up.
 
 ---
 
@@ -13,13 +15,12 @@ detected, the extension underlines the code and shows the error category
 
 | Requirement | Version |
 |-------------|---------|
-| Python | 3.10+ |
 | Node.js | 18+ |
 | VS Code | 1.85+ |
-| macOS / Linux / Windows (WSL) | any |
+| macOS / Linux / Windows | any |
 
-> **Note:** On Apple Silicon Macs the model runs on MPS (GPU). On other machines
-> it falls back to CPU — inference takes ~1–2 seconds either way.
+> **Note:** inference runs on CPU via `onnxruntime-node`; a single classification
+> takes well under 100ms.
 
 ---
 
@@ -32,50 +33,7 @@ cd move-issue-classifier
 
 ---
 
-## Step 2 — Set Up the Python Environment
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate        # On Windows: .venv\Scripts\activate
-pip install -r server/requirements.txt
-```
-
-This installs PyTorch, Transformers, PEFT, FastAPI, and Uvicorn.
-
----
-
-## Step 3 — Start the Classifier Server
-
-```bash
-cd server
-python app.py
-```
-
-You should see output ending with:
-
-```
-INFO:     Uvicorn running on http://127.0.0.1:8765
-```
-
-Leave this terminal running.
-
-### Verify the Server (Optional)
-
-In a new terminal:
-
-```bash
-curl http://127.0.0.1:8765/health
-```
-
-Expected response:
-
-```json
-{"status":"ok","device":"mps","labels":["Perfect","SecurityError","SemanticError","StyleError","SyntaxError"]}
-```
-
----
-
-## Step 4 — Install the VS Code Extension
+## Step 2 — Install the VS Code Extension
 
 ### Option A: Install from VSIX (Recommended)
 
@@ -83,7 +41,9 @@ Expected response:
 2. Go to the Extensions panel (left sidebar, puzzle piece icon).
 3. Click the `…` menu at the top-right of the panel.
 4. Select **"Install from VSIX…"**
-5. Navigate to `extension/move-issue-classifier-0.2.0.vsix` inside the cloned repo.
+5. Navigate to `extension/nicemove-0.4.0.vsix` inside the cloned repo (build it
+   yourself with `cd extension && npm install && npx @vscode/vsce package --no-yarn`
+   if it isn't present — this bundles the model file, so it's not committed to git).
 6. Click **Install** and reload if prompted.
 
 ### Option B: Run from Source (Development Mode)
@@ -96,24 +56,29 @@ npm run compile
 
 Then press **F5** in VS Code to launch an Extension Development Host.
 
+> If `extension/model/onnx/model_quantized.onnx` is missing, regenerate it with
+> `python scripts/export_onnx_model.py` from the repo root (needs `transformers`,
+> `peft`, `optimum-onnx`, `onnxruntime` — see that script's docstring).
+
 ---
 
-## Step 5 — Configure the Extension
+## Step 3 — Configure the Extension
 
 Open VS Code Settings (`Cmd+,` on Mac / `Ctrl+,` on Windows) and search for
 `move classifier`. Set:
 
 | Setting | Value |
 |---------|-------|
-| `moveClassifier.pythonPath` | Path to the Python in your venv, e.g. `/path/to/move-issue-classifier/.venv/bin/python` |
-| `moveClassifier.serverUrl` | `http://127.0.0.1:8765` (default, usually no change needed) |
-| `moveClassifier.anthropicApiKey` | *(Optional)* Your Anthropic API key — enables the "Suggest fix with Claude" feature |
+| `moveClassifier.anthropicApiKey` | *(Optional)* Your Anthropic API key — enables the "Fix with Claude" feature |
+
+Classification itself needs no configuration — it runs locally with no
+network access.
 
 ---
 
-## Step 6 — Test the Extension
+## Step 4 — Test the Extension
 
-### 6.1 Create a Test File
+### 4.1 Create a Test File
 
 Create a file named `test.move` with this content (a known SecurityError — missing access control):
 
@@ -125,21 +90,24 @@ module security::admin {
 }
 ```
 
-### 6.2 Run the Classifier
+### 4.2 Run the Classifier
 
 1. Open `test.move` in VS Code.
 2. Select all code (`Cmd+A` / `Ctrl+A`).
 3. Open Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`).
 4. Type **"Move: Diagnose Selection"** and press Enter.
 
-### 6.3 Expected Result
+### 4.3 Expected Result
 
-- A notification appears: **"Move Classifier: SecurityError (100.0% confidence)"**
 - Red/yellow squiggly underline appears under the code.
-- The Problems panel (`Cmd+Shift+M`) shows the diagnostic.
-- Hovering over the underline shows the classification details.
+- The Problems panel (`Cmd+Shift+M`) shows the diagnostic
+  (`SecurityError (100.0% confidence). Use the Quick Fix lightbulb to ask Claude.`).
+- If an Anthropic API key is configured, a side panel opens automatically and
+  streams Claude's diagnosis and suggested fix. If not, a toast prompts you to
+  configure one.
+- Hovering over the underline shows the same classification details.
 
-### 6.4 Additional Test Snippets
+### 4.4 Additional Test Snippets
 
 **SyntaxError example** (missing semicolon):
 
@@ -166,15 +134,23 @@ module example::counter {
 }
 ```
 
+> Note: very short, hand-typed snippets can be out-of-distribution for the
+> model and misclassify with high confidence — this is a known limitation
+> unrelated to the extension itself. Prefer realistic, multi-line snippets
+> (or real examples from `data/processed/test.csv`) when testing.
+
 ---
 
-## Step 7 — (Optional) Test the Claude Fix Suggestion
+## Step 5 — (Optional) Test the Claude Fix Suggestion
 
-If you have an Anthropic API key configured:
+If you have an Anthropic API key configured, diagnosing an issue (Step 4.2)
+already opens the fix panel automatically. To re-trigger it later on an
+existing diagnostic without re-running the full diagnosis:
 
-1. After a diagnostic appears (red underline), click the lightbulb icon (💡) or press `Cmd+.`.
-2. Select **"Fix … with Claude"**.
-3. A side panel opens showing Claude's streaming fix suggestion.
+1. Click the lightbulb icon (💡) or press `Cmd+.` on the diagnostic.
+2. Select **"Move Classifier: Fix … with Claude"**.
+3. The side panel streams Claude's fix suggestion; click **Apply Fix** to
+   patch the code directly.
 
 ---
 
@@ -188,10 +164,10 @@ If you have an Anthropic API key configured:
 
 | Problem | Solution |
 |---------|----------|
-| "Connection refused" | Make sure the server is running (`python app.py` in `server/`) |
 | No command found in palette | Reload VS Code window after installing the extension |
 | Classification always says "Perfect" | Use realistic multi-line Move snippets — single-line toy code is out-of-distribution |
-| Server won't start (SSL error in logs) | Harmless background thread; the server still works. Verify with `curl /health` |
+| Fix panel never opens | Anthropic API key isn't set — Settings → Extensions → NiceMove → Anthropic API Key |
+| "Move: Reload Local Classifier Model" does nothing visible | Expected — it just clears the cache and forces a fresh model load on the next diagnosis |
 
 ---
 
@@ -204,17 +180,23 @@ If you have an Anthropic API key configured:
 │  • Quick Fix code actions           │
 │  • Streaming Claude panel           │
 │  • OOD guard (Move-likeness check)  │
+│  • In-process ONNX inference        │
+│    (transformers.js + onnxruntime)  │
 └──────────────┬──────────────────────┘
-               │ POST /classify (localhost)
+               │ only when label != "Perfect"
                ▼
 ┌─────────────────────────────────────┐
-│     FastAPI Server (Python)         │
-│  • CodeBERT base model              │
-│  • LoRA adapter (4.7 MB)            │
-│  • 5-class softmax                  │
-│  • MPS / CPU inference              │
+│         Anthropic API               │
+│  (your key, your billing)           │
 └─────────────────────────────────────┘
 ```
+
+No local server, no separate Python process — the CodeBERT + LoRA model
+(merged and exported to a quantized ONNX file, see
+`scripts/export_onnx_model.py`) runs directly inside the extension host.
+`server/` still exists in this repo as a standalone FastAPI reference
+implementation (useful for reproducing the Python-side accuracy numbers), but
+the extension no longer uses it.
 
 ---
 
@@ -223,10 +205,13 @@ If you have an Anthropic API key configured:
 ```
 move-issue-classifier/
 ├── extension/          # VS Code extension source (TypeScript)
-├── server/             # FastAPI classifier server
+│   └── model/           # Quantized ONNX export bundled with the extension
+├── server/             # Standalone FastAPI reference server (not used by the extension)
 │   └── app.py
 ├── models/
 │   └── codebert_lora/  # Trained LoRA adapter weights
+├── scripts/
+│   └── export_onnx_model.py  # Regenerates extension/model/ from models/codebert_lora/
 ├── data/               # Dataset (train/val/test splits)
 ├── src/                # Training & evaluation scripts
 ├── paper/              # Thesis (LaTeX)
