@@ -128,10 +128,11 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
-    "compile": "tsc -p ./",
+    "clean": "node -e \"require('fs').rmSync('out', { recursive: true, force: true })\"",
+    "compile": "npm run clean && tsc -p ./",
     "watch": "node esbuild.js --watch",
     "bundle": "node esbuild.js",
-    "package": "tsc --noEmit -p ./ && node esbuild.js --production"
+    "package": "npm run clean && tsc --noEmit -p ./ && node esbuild.js --production"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",

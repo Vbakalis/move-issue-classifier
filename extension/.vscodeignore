@@ -7,11 +7,23 @@
 src/**
 **/*.ts
 **/*.map
-node_modules/**
 esbuild.js
 package-lock.json
+out/**
 !out/extension.js
 !LICENSE
 !CHANGELOG.md
 !README.md
 !icon.png
+!model/**
+
+# onnxruntime-node and @huggingface/transformers are marked `external` in
+# esbuild.js (native binaries can't be bundled into a single JS file), so all
+# of their transitive node_modules content must ship as real files. That
+# transitive tree is deep (protobufjs, flatbuffers, onnxruntime-common, etc.)
+# — surgical per-package whitelisting here missed real dependencies twice
+# during testing, so node_modules ships in full except the one package
+# empirically confirmed unused for our Node/text-classification path
+# (verified by removing it and re-running classification successfully): if
+# @huggingface/transformers is ever upgraded, re-verify this still holds.
+node_modules/onnxruntime-web/**
