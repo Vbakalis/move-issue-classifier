@@ -2,6 +2,31 @@
 
 All notable changes to the NiceMove extension are documented here.
 
+## [0.4.0] - 2026-07-16
+
+### Added
+- **Local ONNX inference**: classification now runs entirely in-process via
+  `transformers.js` and a quantized ONNX export of the CodeBERT+LoRA model.
+  No Python server, no venv, no manual setup — install the extension and it
+  works. Validated 499/499 prediction agreement with the original PyTorch
+  model on the full test set, both before and after quantization.
+- `scripts/export_onnx_model.py` (repo root): regenerates the bundled model
+  from `models/codebert_lora/` for anyone who needs to rebuild it.
+- "Move: Reload Local Classifier Model" command (was "Move: Restart Local
+  Classifier Server") — clears the cache and forces a fresh model load.
+
+### Fixed
+- Apply Fix could patch in the wrong snippet when Claude's response included
+  a bonus alternative fix after the primary one; it now always applies the
+  first code block, matching the "Fix" heading.
+- Whole-file diagnosis, workspace scan, and auto-classify-on-save could
+  misbehave on files longer than the model's token window; classification
+  now truncates at 512 tokens, matching the original server's behavior.
+
+### Removed
+- `moveClassifier.serverUrl`, `autoSpawnServer`, and `pythonPath` settings —
+  no longer meaningful now that there's no server to configure or spawn.
+
 ## [0.3.0] - 2026-05-11
 
 ### Added
