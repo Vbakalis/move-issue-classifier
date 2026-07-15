@@ -67,7 +67,7 @@
       },
       {
         "command": "move-classifier.restartServer",
-        "title": "Move: Restart Local Classifier Server",
+        "title": "Move: Reload Local Classifier Model",
         "category": "Move Classifier"
       },
       {
@@ -111,11 +111,6 @@
           ],
           "description": "Claude model used for fix suggestions."
         },
-        "moveClassifier.serverUrl": {
-          "type": "string",
-          "default": "http://127.0.0.1:8765",
-          "description": "Local classifier server URL. Leave default unless you run the server yourself."
-        },
         "moveClassifier.confidenceThreshold": {
           "type": "number",
           "default": 0.6,
@@ -123,20 +118,10 @@
           "maximum": 1,
           "description": "Minimum classifier confidence below which the prediction is treated as 'uncertain' and Claude is asked to diagnose from scratch."
         },
-        "moveClassifier.autoSpawnServer": {
-          "type": "boolean",
-          "default": true,
-          "description": "If true, the extension launches the local FastAPI server on activation. Disable if you run the server yourself."
-        },
         "moveClassifier.classifyOnSave": {
           "type": "boolean",
           "default": false,
-          "description": "If true, classify Move files automatically on save and publish diagnostics. Off by default; enable once the local server is reliably reachable."
-        },
-        "moveClassifier.pythonPath": {
-          "type": "string",
-          "default": "",
-          "description": "Path to the Python interpreter used to spawn the server. Leave empty to auto-detect (python3 / python on PATH)."
+          "description": "If true, classify Move files automatically on save and publish diagnostics. Off by default."
         }
       }
     }
@@ -149,7 +134,8 @@
     "package": "tsc --noEmit -p ./ && node esbuild.js --production"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.30.0"
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@huggingface/transformers": "^4.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

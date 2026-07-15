@@ -111,11 +111,14 @@ function render(args: FixPanelArgs): string {
     }
 
     function extractCodeBlock() {
-      // Extract the last code block from the response
+      // Extract the first code block from the response. Claude sometimes adds
+      // an alternative/bonus suggestion after the primary fix (e.g. "Or better,
+      // require a governance vote..."), which would wrongly become "last".
+      // The primary fix always comes first, right after the Diagnosis section.
       const matches = buffer.match(/\`\`\`(?:move|diff|rust)?\\n?([\\s\\S]*?)\`\`\`/g);
       if (!matches) return null;
-      const last = matches[matches.length - 1];
-      return last.replace(/\`\`\`(?:move|diff|rust)?\\n?/, "").replace(/\`\`\`$/, "").trim();
+      const first = matches[0];
+      return first.replace(/\`\`\`(?:move|diff|rust)?\\n?/, "").replace(/\`\`\`$/, "").trim();
     }
 
     function rerender() {

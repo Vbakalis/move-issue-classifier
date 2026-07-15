@@ -1,13 +1,12 @@
 import * as vscode from "vscode";
-import { ServerManager } from "./server";
-import { classify, ClassifyResponse } from "./client";
+import { ClassifyResponse } from "./client";
+import { classifyLocal, reloadLocalModel } from "./localClassifier";
 import { askClaudeStream } from "./claude";
 import { FixPanel } from "./panel";
 import { MoveDiagnostics } from "./diagnostics";
 import { MoveFixActions } from "./actions";
 import { isLikelyMove, moveLikenessScore } from "./heuristic";
 
-let serverManager: ServerManager | undefined;
 let output: vscode.OutputChannel;
 let diagnostics: MoveDiagnostics;
 let statusBar: vscode.StatusBarItem;
@@ -77,19 +76,9 @@ export async function activate(ctx: vscode.ExtensionContext) {
             const cfg = vscode.workspace.getConfiguration("moveClassifier");
             if (!cfg.get<boolean>("classifyOnSave", false)) return;
             if (!isMoveDocument(doc)) return;
-            scheduleAutoClassify(doc);
+            scheduleAutoClassify(doc, ctx);
         })
     );
-
-    serverManager = new ServerManager(ctx, output);
-    if (vscode.workspace.getConfiguration("moveClassifier").get<boolean>("autoSpawnServer", true)) {
-        serverManager.start().catch((err) => {
-            output.appendLine(`Server start failed: ${err}`);
-            vscode.window.showWarningMessage(
-                `Move Classifier: local server failed to start (${err.message ?? err}). You can start it manually or disable auto-spawn in settings.`
-            );
-        });
-    }
 
     ctx.subscriptions.push(
         vscode.commands.registerCommand("move-classifier.diagnose", () => runDiagnose(ctx)),
@@ -97,18 +86,18 @@ export async function activate(ctx: vscode.ExtensionContext) {
             "move-classifier.fixDiagnostic",
             (payload: FixPayload) => runFixFromAction(ctx, payload)
         ),
-        vscode.commands.registerCommand("move-classifier.restartServer", async () => {
-            await serverManager?.stop();
-            await serverManager?.start();
-            vscode.window.showInformationMessage("Move Classifier: server restarted.");
+        vscode.commands.registerCommand("move-classifier.restartServer", () => {
+            classifyCache.clear();
+            reloadLocalModel();
+            vscode.window.showInformationMessage("Move Classifier: local model will reload on next diagnosis.");
         }),
-        vscode.commands.registerCommand("move-classifier.scanWorkspace", () => runWorkspaceScan()),
+        vscode.commands.registerCommand("move-classifier.scanWorkspace", () => runWorkspaceScan(ctx)),
         vscode.commands.registerCommand("move-classifier.applyFix", (args: ApplyFixArgs) => applyFixInline(args))
     );
 }
 
 export async function deactivate() {
-    await serverManager?.stop();
+    // No-op: classification runs in-process (localClassifier.ts), nothing to tear down.
 }
 
 interface FixPayload {
@@ -137,7 +126,6 @@ async function runDiagnose(ctx: vscode.ExtensionContext) {
     }
 
     const cfg = vscode.workspace.getConfiguration("moveClassifier");
-    const serverUrl = cfg.get<string>("serverUrl") ?? "http://127.0.0.1:8765";
     const threshold = cfg.get<number>("confidenceThreshold") ?? 0.6;
     const apiKey = cfg.get<string>("anthropicApiKey") ?? "";
     const model = cfg.get<string>("claudeModel") ?? "claude-sonnet-4-5";
@@ -155,7 +143,7 @@ async function runDiagnose(ctx: vscode.ExtensionContext) {
         try {
             result = await vscode.window.withProgress(
                 { location: vscode.ProgressLocation.Notification, title: "Classifying Move snippet..." },
-                () => classify(serverUrl, code)
+                () => classifyLocal(ctx.extensionPath, code)
             );
         } catch (err: any) {
             setStatusBar("$(error) NiceMove", "Classification failed");
@@ -253,26 +241,23 @@ function isMoveDocument(doc: vscode.TextDocument): boolean {
 
 const autoClassifyTimers = new Map<string, NodeJS.Timeout>();
 
-function scheduleAutoClassify(doc: vscode.TextDocument) {
+function scheduleAutoClassify(doc: vscode.TextDocument, ctx: vscode.ExtensionContext) {
     const key = doc.uri.toString();
     const existing = autoClassifyTimers.get(key);
     if (existing) clearTimeout(existing);
     const t = setTimeout(() => {
         autoClassifyTimers.delete(key);
-        autoClassify(doc).catch((err) => output.appendLine(`Auto-classify failed: ${err}`));
+        autoClassify(doc, ctx).catch((err) => output.appendLine(`Auto-classify failed: ${err}`));
     }, 400);
     autoClassifyTimers.set(key, t);
 }
 
-async function autoClassify(doc: vscode.TextDocument) {
+async function autoClassify(doc: vscode.TextDocument, ctx: vscode.ExtensionContext) {
     const code = doc.getText();
     if (!code.trim() || !isLikelyMove(code)) {
         diagnostics.clear(doc.uri);
         return;
     }
-
-    const cfg = vscode.workspace.getConfiguration("moveClassifier");
-    const serverUrl = cfg.get<string>("serverUrl") ?? "http://127.0.0.1:8765";
 
     // Check cache first
     const key = cacheKey(doc.uri, code);
@@ -282,7 +267,7 @@ async function autoClassify(doc: vscode.TextDocument) {
         result = cached;
     } else {
         try {
-            result = await classify(serverUrl, code);
+            result = await classifyLocal(ctx.extensionPath, code);
             classifyCache.set(key, result);
         } catch (err: any) {
             output.appendLine(`[auto-classify] failed for ${doc.uri.fsPath}: ${err.message ?? err}`);
@@ -339,15 +324,12 @@ async function streamFix(
 
 // --- Workspace-wide scan ---
 
-async function runWorkspaceScan() {
+async function runWorkspaceScan(ctx: vscode.ExtensionContext) {
     const files = await vscode.workspace.findFiles("**/*.move", "**/build/**");
     if (files.length === 0) {
         vscode.window.showInformationMessage("NiceMove: no .move files found in workspace.");
         return;
     }
-
-    const cfg = vscode.workspace.getConfiguration("moveClassifier");
-    const serverUrl = cfg.get<string>("serverUrl") ?? "http://127.0.0.1:8765";
 
     setStatusBar("$(loading~spin) NiceMove", `Scanning ${files.length} files...`);
 
@@ -374,7 +356,7 @@ async function runWorkspaceScan() {
                     result = cached;
                 } else {
                     try {
-                        result = await classify(serverUrl, code);
+                        result = await classifyLocal(ctx.extensionPath, code);
                         classifyCache.set(key, result);
                     } catch (err: any) {
                         output.appendLine(`[scan] failed for ${uri.fsPath}: ${err.message ?? err}`);

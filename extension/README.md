@@ -10,10 +10,10 @@ asks Claude for a concrete fix when the classifier flags a real issue.
 
 ```
 VS Code Extension (TS)
-        │  POST /classify     (localhost only)
+        │  in-process — no network call, no local server
         ▼
-Local FastAPI server (Python)  ← auto-spawned on activation
-        │  CodeBERT + LoRA
+CodeBERT + LoRA, merged and exported to a quantized ONNX model
+        │  run via transformers.js (onnxruntime-node)
         ▼
    {label, confidence}
         │  if label != "Perfect":
@@ -23,12 +23,17 @@ Anthropic API  (your key, your billing)
 Fix suggestion shown in a side panel (with Apply Fix button)
 ```
 
+Classification runs entirely inside the extension host — there is no Python
+process to start and no local server to keep running. The model is bundled
+with the extension (`model/`) as a quantized ONNX export of the CodeBERT +
+LoRA adapter trained for this project; see `scripts/export_onnx_model.py` in
+the repo root if you need to regenerate it.
+
 ## Setup
 
-1. Install dependencies:
+1. Install dependencies and compile:
    ```bash
    cd extension && npm install && npm run compile
-   cd ../server  && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
    ```
 2. Open the `extension/` folder in VS Code and press **F5** to launch an
    Extension Development Host.
@@ -68,11 +73,8 @@ Fix suggestion shown in a side panel (with Apply Fix button)
 |---|---|---|
 | `moveClassifier.anthropicApiKey` | `""` | Your Anthropic API key. Required for fix suggestions. |
 | `moveClassifier.claudeModel` | `claude-sonnet-4-5` | Claude model used for fix suggestions. |
-| `moveClassifier.serverUrl` | `http://127.0.0.1:8765` | Local classifier server URL. |
 | `moveClassifier.confidenceThreshold` | `0.6` | Below this, the prediction is treated as `uncertain`. |
-| `moveClassifier.autoSpawnServer` | `true` | Launch the FastAPI server on activation. |
 | `moveClassifier.classifyOnSave` | `false` | Auto-classify Move files on save. |
-| `moveClassifier.pythonPath` | `""` | Python interpreter (auto-detected if empty). |
 
 ## Packaging
 
@@ -85,9 +87,10 @@ npx @vscode/vsce package --no-yarn
 
 ## Privacy
 
-- The classifier server binds to `127.0.0.1` only.
-- Your code is sent to the local server (in-process) and, only when an issue
-  is detected, to `api.anthropic.com` using *your* API key.
+- Classification runs entirely in-process inside VS Code — no network call, no
+  local server, no external process.
+- Your code is sent over the network only when an issue is detected, to
+  `api.anthropic.com` using *your* API key, to request a fix.
 - The extension does not send telemetry, analytics, or code anywhere else.
 - We never see your code or your key.
 

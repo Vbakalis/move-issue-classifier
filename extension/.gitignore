@@ -2,3 +2,9 @@ node_modules/
 out/
 *.vsix
 .vscode-test/
+
+# Quantized ONNX model binary (125MB) — regenerate with
+# scripts/export_onnx_model.py from models/codebert_lora/. Too large for a
+# normal git push (GitHub rejects files over 100MB without LFS); the small
+# config/tokenizer files it ships alongside are still tracked normally.
+model/onnx/*.onnx

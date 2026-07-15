@@ -15,7 +15,7 @@ async function main() {
         platform: "node",
         target: "node18",
         outfile: "out/extension.js",
-        external: ["vscode"],
+        external: ["vscode", "onnxruntime-node", "@huggingface/transformers", "sharp"],
         logLevel: "warning",
     });
     if (watch) {
